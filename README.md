@@ -1,1 +1,2 @@
-This is a test.
+Some of blb's emacs config files.
+
