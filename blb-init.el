@@ -1,10 +1,9 @@
-;; $Id: blb-init.el,v 1.8 2012/08/15 15:35:39 blb Exp $
+;; $Id: blb-init.el,v 1.42 2013/08/19 22:27:20 blb Exp $
 
 ;; This file is loaded by ~/emacs.d/init.el after all of the Customize stuff.
 ;;
 ;; TODO:
 ;;
-;; - get passwords out of this file!
 ;; - probably want to split into multiple files
 ;; - be more platform-independent
 
@@ -21,23 +20,36 @@
 ;;
 (defalias 'yes-or-no-p 'y-or-n-p)
 
-;; obsolete since 23.1
-;; (set-default-font "-apple-Menlo-medium-normal-normal-*-13-*-*-*-m-0-iso10646-1")
 (set-frame-font "-apple-Menlo-medium-normal-normal-*-13-*-*-*-m-0-iso10646-1" t t)
 (setq sh-shell-file "/bin/bash")
 (setq explicit-shell-file-name "/bin/bash")
 (setq midnight-period 3600)
 (setq ring-bell-function 'ignore)
 (setq visible-bell 'top-bottom)
+(put 'narrow-to-page 'disabled nil)
+(put 'upcase-region 'disabled nil)
+(put 'downcase-region 'disabled nil)
 
+;; kickstart files
+(setq auto-mode-alist
+   (cons '("\\.ks" . shell-script-mode) auto-mode-alist))
+
+;;
+;; keybindings for switching windows
+;;
 ;; these unfortunately don't work in org mode
 (global-set-key (kbd "M-<left>") 'windmove-left)          ; move to left window
 (global-set-key (kbd "M-<right>") 'windmove-right)        ; move to right window
 (global-set-key (kbd "M-<up>") 'windmove-up)              ; move to upper window
 (global-set-key (kbd "M-<down>") 'windmove-down)          ; move to lower window
+;; these work in org mode but possibly only on Apple keyboard ("s" is Apple key)
+(global-set-key (kbd "M-s-<left>") 'windmove-left)          ; move to left window
+(global-set-key (kbd "M-s-<right>") 'windmove-right)        ; move to right window
+(global-set-key (kbd "M-s-<up>") 'windmove-up)              ; move to upper window
+(global-set-key (kbd "M-s-<down>") 'windmove-down)          ; move to lower window
 
 (global-set-key (kbd "C-c r f") 'recentf-open-files)      ; open recent files
-(global-set-key (kbd "C-c m") 'vm-mail) ; open mail composition window
+(global-set-key (kbd "C-x r v") 'register-list) ; open register list
 
 ;; supports only AIFF
 (defun blb-play-sound-file (sound-file)
@@ -76,6 +88,14 @@
 (global-set-key (kbd "M-p") 'blb-scroll-up)
 
 (put 'narrow-to-region 'disabled nil)
+
+;; start checkbox list in org mode with C-c c
+(defun blb-begin-checkbox-list ()
+  "Start an org-mode checkbox list."
+  (interactive)
+  (org-return-indent)
+  (insert "- [ ] "))
+(add-hook 'org-mode-hook (lambda () (local-set-key (kbd "C-c c") 'blb-begin-checkbox-list)))
 
 ;; M-; works in place of these
 (defalias 'cr 'comment-region)
@@ -126,13 +146,53 @@
 ;;
 ;; session
 ;;
-(require 'session)
-(add-hook 'after-init-hook 'session-initialize)
+;; Broken since upgrade to 24.3.
+;; (require 'session)
+;; (add-hook 'after-init-hook 'session-initialize)
 
 ;;
 ;; mildly modified Zenburn theme
 ;;
 (require 'blb-zenburn-theme)
+
+;;
+;; word selection
+;;
+;; by Nikolaj Schumacher, 2008-10-20. Released under GPL.
+(defun semnav-up (arg)
+  (interactive "p")
+  (when (nth 3 (syntax-ppss))
+    (if (> arg 0)
+        (progn
+          (skip-syntax-forward "^\"")
+          (goto-char (1+ (point)))
+          (decf arg))
+      (skip-syntax-backward "^\"")
+      (goto-char (1- (point)))
+      (incf arg)))
+  (up-list arg))
+
+;; by Nikolaj Schumacher, 2008-10-20. Released under GPL.
+(defun extend-selection (arg &optional incremental)
+  "Select the current word.
+Subsequent calls expands the selection to larger semantic unit."
+  (interactive (list (prefix-numeric-value current-prefix-arg)
+                     (or (region-active-p)
+                         (eq last-command this-command))))
+  (if incremental
+      (progn
+        (semnav-up (- arg))
+        (forward-sexp)
+        (mark-sexp -1))
+    (if (> arg 1)
+        (extend-selection (1- arg) t)
+      (if (looking-at "\\=\\(\\s_\\|\\sw\\)*\\_>")
+          (goto-char (match-end 0))
+        (unless (memq (char-before) '(?\) ?\"))
+          (forward-sexp)))
+      (mark-sexp -1))))
+
+(global-set-key (kbd "M-8") 'extend-selection)
 
 ;; (require 'color-theme)
 ;; (eval-after-load "color-theme"
@@ -154,6 +214,7 @@
 (load-library "vm-reply")
 
 (setq vm-enable-external-messages '(imap)) ; what does this do?
+(setq mail-user-agent 'vm-user-agent)
 
 ;; probably from emacswiki
 (defun jjf-vm-follow-summary-click (arg)
@@ -233,15 +294,21 @@
   (insert "\n--Brian\n\n"))
 
 ;; keybinding for inserting signature
-(add-hook 'vm-mail-mode-hook '(lambda () (local-set-key (kbd "C-c s") 'blb-insert-mail-signature)))
+(add-hook 'vm-mail-mode-hook (lambda () (local-set-key (kbd "C-c s") 'blb-insert-mail-signature)))
 
 ;; put a blank line above mail citations
 ;; No, this causes all headers to be cited!
-;; (add-hook 'mail-citation-hook '(lambda () (insert "\n")))
+;; (add-hook 'mail-citation-hook (lambda () (insert "\n")))
 
 ;; make the Read and Send Mail from the menu use VM
 (define-key menu-bar-tools-menu [rmail] '("Read Mail" . vm))
 (define-key-after menu-bar-tools-menu [smail] '("Send Mail" . vm-mail) 'rmail)
+
+;; open URL links with vm-url-browser
+(add-hook 'vm-presentation-mode-hook 
+          (lambda () 
+            (set (make-local-variable 'w3m-goto-article-function) 
+                 vm-url-browser)))
 
 ;;
 ;; BBDB
@@ -264,14 +331,26 @@
    (let ((file-name (dired-get-file-for-visit)))
      (if (file-exists-p file-name)
 	 (call-process "/usr/bin/open" nil 0 nil file-name))))
-(add-hook 'dired-mode-hook '(lambda () (local-set-key (kbd "C-c o") 'dired-open-mac)))
+(add-hook 'dired-mode-hook (lambda () (local-set-key (kbd "C-c o") 'dired-open-mac)))
 (require 'dired-tar)
 
 ;;
 ;; others
 ;;
+
+;; buff-menu+ is broken after with emacs >= 24.3
 (require 'buff-menu+)
 (add-to-list 'same-window-buffer-names "*Buffer List*")
+;; use Ibuffer instead
+;; (global-set-key (kbd "C-x C-b") 'ibuffer)
+;; (autoload 'ibuffer "ibuffer" "List buffers." t)
+;; ;; Switching to ibuffer puts the cursor on the most recent buffer
+;;   (defadvice ibuffer (around ibuffer-point-to-most-recent) ()
+;;     "Open ibuffer with cursor pointed to most recent buffer name"
+;;     (let ((recent-buffer-name (buffer-name)))
+;;       ad-do-it
+;;       (ibuffer-jump-to-buffer recent-buffer-name)))
+;;   (ad-activate 'ibuffer)
 
 (require 'org-mouse)
 
@@ -285,6 +364,15 @@
 (require 'dns-mode)
 (setq auto-mode-alist (cons '("\\.hosts\\'" . dns-mode) auto-mode-alist))
 
+(define-skeleton rfc2317-dns-skeleton
+  "Write RFC2317 DNS delegation records."
+  "Target delegation domain: "
+  "0/24 IN NS ns1." str ".\n"
+  "0/24 IN NS ns2." str ".\n"
+  "$GENERATE 1-255 $ IN CNAME $.0/24\n")
+(add-hook 'dns-mode-hook (lambda ()
+                           (local-set-key (kbd "C-c i r") 'rfc2317-dns-skeleton)))
+
 ;;
 ;; markdown
 ;;
@@ -294,7 +382,7 @@
    (cons '("\\.md" . markdown-mode) auto-mode-alist))
 ;; haven't test this for converting tabs to spaces:
 ;; (add-hook 'markdown-mode-hook  
-;;           '(lambda () 
+;;           (lambda () 
 ;;              (make-local-hook 'write-contents-hooks) 
 ;;              (add-hook 'write-contents-hooks 'ska-untabify nil t)))
 ;; unsuccessful attempt at dealing with tabs:
@@ -322,21 +410,21 @@
 (add-to-list 'auto-insert-alist '(markdown-mode . "insert.markdown"))
 
 (add-hook 'cperl-mode-hook
-	  '(lambda ()
-	     (auto-insert)
-	     (goto-char (point-max))))
+	  (lambda ()
+        (auto-insert)
+        (goto-char (point-max))))
 (add-to-list 'auto-insert-alist '(cperl-mode . "insert.perl"))
 
 (add-hook 'python-mode-hook
-	  '(lambda ()
-	     (auto-insert)
-	     (goto-char (point-max))))
+	  (lambda ()
+        (auto-insert)
+        (goto-char (point-max))))
 (add-to-list 'auto-insert-alist '(python-mode . "insert.python"))
 
 (add-hook 'sh-mode-hook
-	  '(lambda ()
-	     (auto-insert)
-	     (goto-char (point-max))))
+	  (lambda ()
+        (auto-insert)
+        (goto-char (point-max))))
 (add-to-list 'auto-insert-alist '(sh-mode . "insert.bash"))
 
 ;;
@@ -442,15 +530,21 @@ This is updated each time `blb-erc-growl' gets called from
   (interactive)
   (if (not (eq major-mode "erc-mode"))
       (select-frame-set-input-focus (make-frame)))
-  (erc :server "localhost" :port "6667" :nick "blb"))
+  (set-window-dedicated-p (selected-window) t)
+  (erc :server "localhost" :port "6667" :nick "blb")
+  (delete-other-windows))
 
 (defun freenode ()
   "Log into Freenode with erc."
   (interactive)
-  (erc :server "chat.freenode.net" :port "6667" :nick "RhubarbSin" :password blb-freenode-password))
+  (if (not (eq major-mode "erc-mode"))
+      (select-frame-set-input-focus (make-frame)))
+  (set-window-dedicated-p (selected-window) t)
+  (erc :server "chat.freenode.net" :port "6667" :nick "RhubarbSin" :password blb-freenode-password)
+  (delete-other-windows))
 
 ;;
-;; iTunes controller; seems broken now
+;; iTunes controller
 ;;
 (when on-darwin
   (require 'itunes nil 'noerror)
@@ -461,6 +555,26 @@ This is updated each time `blb-erc-growl' gets called from
 ;; I guess this loads all of the nxhtml stuff
 ;;
 (load "nxhtml/autostart")
+
+;; Workaround the annoying warnings:
+;; Warning (mumamo-per-buffer-local-vars):
+;; Already 'permanent-local t: buffer-file-name
+(when (and (equal emacs-major-version 24)
+           (>= emacs-minor-version 2))
+  (eval-after-load "mumamo"
+    '(setq mumamo-per-buffer-local-vars
+           (delq 'buffer-file-name mumamo-per-buffer-local-vars))))
+;; Mumamo is making emacs 23.3 freak out:
+(when (and (>= emacs-major-version 23)
+           (>= emacs-minor-version 3))
+  (eval-after-load "bytecomp"
+    '(add-to-list 'byte-compile-not-obsolete-vars
+                  'font-lock-beginning-of-syntax-function))
+  ;; tramp-compat.el clobbers this variable!
+  (eval-after-load "tramp-compat"
+    '(add-to-list 'byte-compile-not-obsolete-vars
+                  'font-lock-beginning-of-syntax-function)))
+
 
 ;;
 ;; w3m for rendering HTML in vm
@@ -476,7 +590,7 @@ This is updated each time `blb-erc-growl' gets called from
 ;; (require 'sunrise-x-buttons)
 
 (require 'multi-term)
-(setq multi-term-program "/bin/csh")
+;; (setq multi-term-program "/bin/csh")
 (setq multi-term-switch-after-close nil)
 ;; (custom-set-variables
 ;;   '(term-default-bg-color "#000000")        ;; background color (black)
@@ -484,10 +598,9 @@ This is updated each time `blb-erc-growl' gets called from
 (global-set-key (kbd "C-c t") 'multi-term)
 ;; (setq multi-term-buffer-name "shell")
 
-;; Emacs 23: bundled EasyPG
+;; EasyPG
 (require 'epa)
 ;; (epa-file-enable)
-(put 'downcase-region 'disabled nil)
 
 ;;
 ;; Emms for streaming audio
@@ -508,8 +621,55 @@ This is updated each time `blb-erc-growl' gets called from
 ;;
 ;; Magit
 ;;
-(add-to-list 'load-path
-	     (expand-file-name "~/.emacs.d/magit-1.1.1"))
-(add-to-list 'Info-default-directory-list
-	     (expand-file-name "~/.emacs.d/magit-1.1.1"))
-(autoload 'magit-status "magit" nil t)
+;; (add-to-list 'load-path
+;; 	     (expand-file-name "~/.emacs.d/magit-1.1.1"))
+;; (add-to-list 'Info-default-directory-list
+;; 	     (expand-file-name "~/.emacs.d/magit-1.1.1"))
+;; (autoload 'magit-status "magit" nil t)
+(global-set-key (kbd "C-c g") 'magit-status)
+(add-hook 'magit-mode-hook (lambda () (local-set-key (kbd "T") 'magit-annotated-tag)))
+
+;;
+;; Marmalade
+;;
+(require 'package)
+(add-to-list 'package-archives 
+    '("marmalade" .
+      "http://marmalade-repo.org/packages/"))
+(package-initialize)
+
+;;
+;; Python
+;;
+(add-hook 'python-mode-hook
+          (lambda ()
+            (local-set-key (kbd "C-c i c") 'python-insert-class)
+            (local-set-key (kbd "C-c i d") 'python-insert-def)
+            (local-set-key (kbd "C-c i f") 'python-insert-for)
+            (local-set-key (kbd "C-c i i") 'python-insert-if)
+            (local-set-key (kbd "C-c i t") 'python-insert-try/except)
+            (local-set-key (kbd "C-c i w") 'python-insert-while)))
+
+;;
+;; org-plot/gnuplot
+;;
+(defalias 'make-local-hook 'ignore)
+
+;; C-d twice to exit shell and kill buffer
+(defun comint-delchar-or-eof-or-kill-buffer (arg)
+  (interactive "p")
+  (if (null (get-buffer-process (current-buffer)))
+      (kill-buffer)
+    (comint-delchar-or-maybe-eof arg)))
+
+(add-hook 'shell-mode-hook
+          (lambda ()
+            (define-key shell-mode-map
+              (kbd "C-d") 'comint-delchar-or-eof-or-kill-buffer)))
+
+;;
+;; octopress
+;;
+(load-library "octopress")
+(require 'rvm)
+(rvm-use-default) ;; use rvm's default ruby for the current Emacs session
