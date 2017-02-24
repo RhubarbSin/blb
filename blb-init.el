@@ -333,6 +333,7 @@ Subsequent calls expands the selection to larger semantic unit."
 	 (call-process "/usr/bin/open" nil 0 nil file-name))))
 (add-hook 'dired-mode-hook (lambda () (local-set-key (kbd "C-c o") 'dired-open-mac)))
 (require 'dired-tar)
+(require 'dired-details+)
 
 ;;
 ;; others
