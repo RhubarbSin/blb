@@ -1,0 +1,8 @@
+#!/bin/sh
+
+git filter-branch --env-filter '
+export GIT_AUTHOR_NAME="Rhubarb Sin"
+export GIT_AUTHOR_EMAIL="rhubarbsin@gmail.com"
+export GIT_COMMITTER_NAME="Rhubarb Sin"
+export GIT_COMMITTER_EMAIL="rhubarbsin@gmail.com"
+' -- --all
