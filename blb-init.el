@@ -334,6 +334,8 @@ Subsequent calls expands the selection to larger semantic unit."
 (add-hook 'dired-mode-hook (lambda () (local-set-key (kbd "C-c o") 'dired-open-mac)))
 (require 'dired-tar)
 (require 'dired-details+)
+(autoload 'dired-async-mode "dired-async.el" nil t)
+(dired-async-mode 1)
 
 ;;
 ;; others
