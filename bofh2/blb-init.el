@@ -278,6 +278,7 @@
 (put 'dired-find-alternate-file 'disabled nil)
 (eval-after-load 'dired '(progn (require 'dired-filetype-face)))
 (require 'dired-tar)
+(require 'dired-details+)
 
 ;;
 ;; Magit
