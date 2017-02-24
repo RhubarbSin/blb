@@ -97,6 +97,16 @@
   (insert "- [ ] "))
 (add-hook 'org-mode-hook (lambda () (local-set-key (kbd "C-c c") 'blb-begin-checkbox-list)))
 
+;; set window width to 80 characters with C-c 8
+(defun blb/set-window-width (n)
+  "Set the selected window's width."
+  (adjust-window-trailing-edge (selected-window) (- n (window-width)) t))
+(defun blb/set-80-columns ()
+  "Set the selected window to 80 columns."
+  (interactive)
+  (blb/set-window-width 80))
+(global-set-key (kbd "C-c 8") 'blb/set-80-columns)
+
 ;; M-; works in place of these
 (defalias 'cr 'comment-region)
 (defalias 'ucr 'uncomment-region)
